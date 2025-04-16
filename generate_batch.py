@@ -62,16 +62,33 @@ for _ in tqdm(range(args.samples), desc="Generating samples"):
     try:
         clean_text = output.split('==========')[1].strip()
         # 末尾 </s> や余計な文字も消す
+        clean_text = clean_text.replace("<s>", "").strip()
         clean_text = clean_text.replace("</s>", "").strip()
+        clean_text = clean_text.replace("<>", "").strip()
+        clean_text = clean_text.replace("<", "").strip()
+        clean_text = clean_text.replace(">", "").strip()
         clean_text = clean_text.replace("</>", "").strip()
+        clean_text = clean_text.replace("</", "").strip()
+        clean_text = clean_text.replace("/>", "").strip()
+        clean_text = clean_text.replace("<l>", "").strip()
         clean_text = clean_text.replace("</l>", "").strip()
+        clean_text = clean_text.replace("<black>", "").strip()
+        clean_text = clean_text.replace("</black>", "").strip()
+        clean_text = clean_text.replace("<black", "").strip()
+        clean_text = clean_text.replace("/black>", "").strip()
+        clean_text = clean_text.replace("<strong>", "").strip()
+        clean_text = clean_text.replace("</strong>", "").strip()
+        clean_text = clean_text.replace("/strong>", "").strip()
+        clean_text = clean_text.replace("<strong", "").strip()
+
 
         # ここで特定のキーワードを含む場合はスキップ
         forbidden_keywords = ["政治", "選挙", "宗教", "神", "仏教", "キリスト", "イスラム", 
                               "宗教的", "信仰", "信者", "教義", "教え", "教会", "寺院", "神社", 
                               "聖地", "聖典", "教祖", "教団", "信仰心", "信仰対象", "宗教法人",
                               "靖国", "天皇", "皇室", "自民党", "民主党", "共産党", "公明党",
-                              "支那", "移民", "難民","外人", "右翼", "左翼", "ナショナリズム","資産"]
+                              "支那", "移民", "難民","外人", "右翼", "左翼", "ナショナリズム","資産",
+                              "黒人", "白人", "アジア人", "人種差別", "差別", "ヘイト", "ヘイトスピーチ",]
         if any(keyword in clean_text for keyword in forbidden_keywords):
             clean_text = ""
             continue
