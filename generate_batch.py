@@ -81,6 +81,17 @@ for _ in tqdm(range(args.samples), desc="Generating samples"):
         clean_text = clean_text.replace("/strong>", "").strip()
         clean_text = clean_text.replace("<strong", "").strip()
 
+        clean_text = clean_text.replace("[INST]", "").strip()
+        clean_text = clean_text.replace("INST", "").strip()
+        clean_text = clean_text.replace("/", "").strip()
+        clean_text = clean_text.replace("\n", "").strip()
+        clean_text = clean_text.replace("SPAN", "").strip()
+        clean_text = clean_text.replace("span", "").strip()
+        clean_text = clean_text.replace("[/INST]", "").strip()
+        clean_text = clean_text.replace("strong", "").strip()
+
+
+
 
         # ここで特定のキーワードを含む場合はスキップ
         forbidden_keywords = ["政治", "選挙", "宗教", "神", "仏教", "キリスト", "イスラム", 
