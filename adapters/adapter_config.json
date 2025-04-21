@@ -1,0 +1,34 @@
+{
+    "adapter_path": "adapters",
+    "batch_size": 1,
+    "config": null,
+    "data": "/Users/neo-aichan/mlx-data",
+    "fine_tune_type": "lora",
+    "grad_checkpoint": false,
+    "iters": 3000,
+    "learning_rate": 0.0001,
+    "lora_parameters": {
+        "rank": 8,
+        "dropout": 0.0,
+        "scale": 10.0
+    },
+    "lr_schedule": null,
+    "mask_prompt": false,
+    "max_seq_length": 2048,
+    "model": "/Users/neo-aichan/models/Llama-3.3-Swallow-70B-v0.4",
+    "num_layers": 16,
+    "optimizer": "adam",
+    "optimizer_config": {
+        "adam": {},
+        "adamw": {}
+    },
+    "resume_adapter_file": "/Users/neo-aichan/models/llama3.3-swallow-70b-mlx-adapter/adapters.safetensors",
+    "save_every": 100,
+    "seed": 0,
+    "steps_per_eval": 200,
+    "steps_per_report": 10,
+    "test": false,
+    "test_batches": 500,
+    "train": true,
+    "val_batches": 25
+}
