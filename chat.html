@@ -3,17 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>裏垢女子チャット</title>
-  <style>
-    body { font-family: sans-serif; margin: 2rem; background: #f8f8f8; }
-    #chat { max-width: 700px; margin: auto; background: white; padding: 1rem; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
-    .msg { margin: 0.5rem 0; }
-    .user { text-align: right; color: #007bff; }
-    .bot { text-align: left; color: #e91e63; }
-    .variant { padding-left: 1rem; margin-top: 0.3rem; font-size: 0.95rem; }
-    input, button, select { padding: 0.5rem; font-size: 1rem; margin-right: 0.5rem; }
-    .controls { margin-top: 1rem; }
-    textarea { width: 100%; height: 150px; margin-top: 1rem; font-family: monospace; white-space: pre; }
-  </style>
+  <link rel="stylesheet" href="styles/global.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div id="chat">
@@ -22,11 +13,16 @@
 
     <input id="prompt" placeholder="プロンプトを入力..." size="50"><br>
 
+    <!-- プログレスバー -->
+    <div id="progressContainer">
+      <div id="progressBar"></div>
+      <div id="progressStatus">生成中...</div>
+    </div>
+
     <div class="controls">
       🔁 複数案: <input type="number" id="num" value="3" min="1" max="10">
       <label><input type="checkbox" id="jsonMode"> JSON形式で出力</label>
-      <label><input type="checkbox" id="streamMode" checked> ストリーミング生成</label>
-      <button onclick="send()">送信</button>
+      <button id="sendButton" onclick="send()">送信</button>
     </div>
 
     <div id="jsonOutput" style="display:none;">
@@ -35,89 +31,84 @@
     </div>
   </div>
 
+  <!-- システムモニター -->
+  <div id="systemMonitor">
+    <h4>システムリソース</h4>
+    <div class="resource-container">
+      <div class="resource">
+        <span>CPU使用率:</span>
+        <div class="meter">
+          <div id="cpuUsage" class="meter-fill"></div>
+        </div>
+        <span id="cpuValue">0%</span>
+      </div>
+      <div class="resource">
+        <span>メモリ使用率:</span>
+        <div class="meter">
+          <div id="ramUsage" class="meter-fill"></div>
+        </div>
+        <span id="ramValue">0%</span>
+      </div>
+    </div>
+  </div>
+
   <script>
+    // Supabaseクライアントの初期化
+    const supabaseUrl = 'https://bqyzvbgmnhaolanwhoup.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxeXp2Ymdtbmhhb2xhbndob3VwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzMDI2ODYsImV4cCI6MjA2MDg3ODY4Nn0.nO0J40ZijlXw8qPYQAb5DcIlucbJ4NQ62SNcUe9GQgg';
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
     async function send() {
       const prompt = document.getElementById("prompt").value;
       const num = parseInt(document.getElementById("num").value);
       const jsonMode = document.getElementById("jsonMode").checked;
-      const streamMode = document.getElementById("streamMode").checked;
+      const sendButton = document.getElementById("sendButton");
+      const progressContainer = document.getElementById("progressContainer");
+      const progressBar = document.getElementById("progressBar");
 
       if (!prompt) return;
 
+      // Supabaseの「local_llm_generated_text」テーブルにプロンプトを保存（応答は後で更新）
+      let insertedRowId;
+      try {
+        const { data, error } = await supabaseClient
+          .from('local_llm_generated_text')
+          .insert([{ prompt: prompt, response: '' }])
+          .select();
+        
+        if (error) {
+          console.error('Supabaseへの保存エラー:', error);
+        } else {
+          console.log('プロンプトをSupabaseに保存しました:', data);
+          if (data && data.length > 0) {
+            insertedRowId = data[0].id;
+          }
+        }
+      } catch (supabaseError) {
+        console.error('Supabase処理中の例外:', supabaseError);
+      }
+
+      // 送信ボタンを無効化
+      sendButton.disabled = true;
+      
+      // プログレスバーを表示
+      progressContainer.style.display = "block";
+      
+      // プログレスバーのアニメーション開始
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        // 進捗を徐々に増加（最大95%まで）
+        if (progress < 95) {
+          progress += Math.random() * 5;
+          if (progress > 95) progress = 95;
+          progressBar.style.width = `${progress}%`;
+        }
+      }, 300);
+
       const messages = document.getElementById("messages");
       messages.innerHTML += `<div class="msg user">🧑‍💻 ${prompt}</div>`;
-      
-      // ストリーミングモードが有効な場合
-      if (streamMode && !jsonMode) {
-        // 各生成案の表示領域を事前に作成
-        const responseElements = [];
-        for (let i = 0; i < num; i++) {
-          const responseDiv = document.createElement("div");
-          responseDiv.className = "msg bot";
-          responseDiv.innerHTML = `💋 <span class="variant">案 ${i + 1}: <span id="response-${i}"></span></span>`;
-          messages.appendChild(responseDiv);
-          responseElements.push(document.getElementById(`response-${i}`));
-        }
 
-        try {
-          // ストリーミングリクエストを送信
-          const response = await fetch("/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prompt: prompt,
-              max_tokens: 300,
-              num_return_sequences: num,
-              stream: true
-            })
-          });
-
-          // レスポンスをストリームとして処理
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
-
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            
-            // 受信したデータをデコード
-            buffer += decoder.decode(value, { stream: true });
-            
-            // 完全なJSONオブジェクトを処理
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || ""; // 最後の不完全な行を保持
-            
-            for (const line of lines) {
-              if (line.trim() === "") continue;
-              
-              try {
-                const data = JSON.parse(line);
-                
-                // 終了メッセージを受信した場合
-                if (data.finish) {
-                  console.log("ストリーミング生成完了");
-                  break;
-                }
-                
-                // デルタ（新しいテキスト部分）を受信した場合
-                if (data.delta && typeof data.sequence_idx === "number") {
-                  const idx = data.sequence_idx;
-                  if (idx < responseElements.length) {
-                    responseElements[idx].textContent += data.delta;
-                  }
-                }
-              } catch (e) {
-                console.error("JSONパースエラー:", e, line);
-              }
-            }
-          }
-        } catch (error) {
-          console.error("ストリーミングエラー:", error);
-          messages.innerHTML += `<div class="msg bot">⚠️ ストリーミングエラー: ${error.message}</div>`;
-        }
-      } else {
-        // 通常モード（非ストリーミング）
+      try {
         const res = await fetch("/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -125,13 +116,44 @@
             prompt: prompt,
             max_tokens: 300,
             num_return_sequences: num,
-            stream: false
           })
         });
 
         const data = await res.json();
 
+        // 生成完了時にプログレスバーを100%にする
+        clearInterval(progressInterval);
+        progressBar.style.width = "100%";
+        
+        // 少し待ってからプログレスバーを非表示にする
+        setTimeout(() => {
+          progressContainer.style.display = "none";
+          progressBar.style.width = "0%";
+          sendButton.disabled = false;
+        }, 500);
+
         if (Array.isArray(data.responses)) {
+          // 生成された応答をSupabaseに保存
+          if (insertedRowId) {
+            try {
+              // 複数の応答をJSON文字列として結合
+              const responseText = JSON.stringify(data.responses);
+              
+              const { error } = await supabaseClient
+                .from('local_llm_generated_text')
+                .update({ response: responseText })
+                .eq('id', insertedRowId);
+              
+              if (error) {
+                console.error('Supabaseの応答更新エラー:', error);
+              } else {
+                console.log('応答をSupabaseに保存しました');
+              }
+            } catch (updateError) {
+              console.error('Supabase応答更新中の例外:', updateError);
+            }
+          }
+
           if (jsonMode) {
             // JSON形式で表示
             document.getElementById("jsonOutput").style.display = "block";
@@ -150,10 +172,49 @@
         } else {
           messages.innerHTML += `<div class="msg bot">⚠️ 取得失敗: ${data.response || "形式不正"}</div>`;
         }
+      } catch (error) {
+        // エラー発生時
+        clearInterval(progressInterval);
+        progressContainer.style.display = "none";
+        progressBar.style.width = "0%";
+        sendButton.disabled = false;
+        
+        messages.innerHTML += `<div class="msg bot">⚠️ エラーが発生しました: ${error.message}</div>`;
       }
 
       document.getElementById("prompt").value = "";
     }
+
+    // システム情報を取得して表示する関数
+    async function updateSystemInfo() {
+      try {
+        const response = await fetch("/system-info");
+        const data = await response.json();
+        
+        // CPU使用率を更新
+        const cpuUsage = document.getElementById("cpuUsage");
+        const cpuValue = document.getElementById("cpuValue");
+        cpuUsage.style.width = `${data.cpu}%`;
+        cpuValue.textContent = `${data.cpu.toFixed(1)}%`;
+        
+        // メモリ使用率を更新
+        const ramUsage = document.getElementById("ramUsage");
+        const ramValue = document.getElementById("ramValue");
+        ramUsage.style.width = `${data.memory}%`;
+        // GB単位に変換して表示（1GB = 1,073,741,824バイト）
+        const usedGB = (data.memory_used / 1073741824).toFixed(1);
+        const totalGB = (data.memory_total / 1073741824).toFixed(1);
+        ramValue.textContent = `${data.memory.toFixed(1)}% (${usedGB}GB/${totalGB}GB)`;
+      } catch (error) {
+        console.error("システム情報の取得に失敗しました:", error);
+      }
+    }
+
+    // ページ読み込み時に初回実行
+    updateSystemInfo();
+    
+    // 3秒ごとに更新
+    setInterval(updateSystemInfo, 3000);
   </script>
 </body>
 </html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>裏垢女子チャット</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; background: #f8f8f8; }
+    #chat { max-width: 700px; margin: auto; background: white; padding: 1rem; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
+    .msg { margin: 0.5rem 0; }
+    .user { text-align: right; color: #007bff; }
+    .bot { text-align: left; color: #e91e63; }
+    .variant { padding-left: 1rem; margin-top: 0.3rem; font-size: 0.95rem; }
+    input, button, select { padding: 0.5rem; font-size: 1rem; margin-right: 0.5rem; }
+    .controls { margin-top: 1rem; }
+    textarea { width: 100%; height: 150px; margin-top: 1rem; font-family: monospace; white-space: pre; }
+    
+    /* プログレスバーのスタイル */
+    .progress-container {
+      width: 100%;
+      height: 6px;
+      background-color: #f0f0f0;
+      border-radius: 3px;
+      margin-top: 5px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background-color: #e91e63;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+    .progress-status {
+      font-size: 0.8rem;
+      color: #888;
+      margin-top: 2px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div id="chat">
+    <h2>裏垢女子キャプション・チャット</h2>
+    <div id="messages"></div>
+
+    <input id="prompt" placeholder="プロンプトを入力..." size="50"><br>
+
+    <div class="controls">
+      🔁 複数案: <input type="number" id="num" value="3" min="1" max="10">
+      <label><input type="checkbox" id="jsonMode"> JSON形式で出力</label>
+      <label><input type="checkbox" id="streamMode" checked> ストリーミング生成</label>
+      <button onclick="send()">送信</button>
+    </div>
+
+    <div id="jsonOutput" style="display:none;">
+      <h4>📦 JSON出力</h4>
+      <textarea id="jsonArea" readonly></textarea>
+    </div>
+  </div>
+
+  <script>
+    async function send() {
+      const prompt = document.getElementById("prompt").value;
+      const num = parseInt(document.getElementById("num").value);
+      const jsonMode = document.getElementById("jsonMode").checked;
+      const streamMode = document.getElementById("streamMode").checked;
+
+      if (!prompt) return;
+
+      // メッセージ表示領域を取得
+      const messages = document.getElementById("messages");
+      
+      // 新しいリクエストを送信する前に、以前の結果をクリア
+      messages.innerHTML = "";
+      
+      // ユーザーのプロンプトを表示
+      messages.innerHTML = `<div class="msg user">🧑‍💻 ${prompt}</div>`;
+      
+      // ストリーミングモードが有効な場合
+     if (streamMode && !jsonMode) {
+       // 各生成案の表示領域を事前に作成
+       const responseElements = [];
+       for (let i = 0; i < num; i++) {
+         const responseDiv = document.createElement("div");
+         responseDiv.className = "msg bot";
+         responseDiv.innerHTML = `
+           💋 <span class="variant">案 ${i + 1}: <span id="response-${i}"></span></span>
+           <div class="progress-container">
+             <div class="progress-bar" id="progress-bar-${i}"></div>
+           </div>
+           <div class="progress-status" id="progress-status-${i}">準備中...</div>
+         `;
+         messages.appendChild(responseDiv);
+         responseElements.push(document.getElementById(`response-${i}`));
+       }
+
+       // プログレスバー関連の変数を事前に定義
+       const progressBars = Array.from({length: num}, (_, i) => document.getElementById(`progress-bar-${i}`));
+       const progressStatus = Array.from({length: num}, (_, i) => document.getElementById(`progress-status-${i}`));
+       const progressState = Array(num).fill(0);
+       let progressInterval = null;
+
+       try {
+          // ストリーミングリクエストを送信
+          const response = await fetch("/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: prompt,
+              max_tokens: 300,
+              num_return_sequences: num,
+              stream: true
+            })
+          });
+
+          // レスポンスをストリームとして処理
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          
+          // プログレスバーを更新する関数
+          const updateProgress = () => {
+            for (let i = 0; i < num; i++) {
+              if (progressState[i] < 100) {
+                // 徐々に進捗を増やす（完了していない場合）
+                progressState[i] = Math.min(progressState[i] + 1, 99);
+                progressBars[i].style.width = `${progressState[i]}%`;
+                progressStatus[i].textContent = `生成中... ${progressState[i]}%`;
+              }
+            }
+          };
+          
+          // 定期的に進捗を更新
+          progressInterval = setInterval(updateProgress, 200);
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            
+            // 受信したデータをデコード
+            buffer += decoder.decode(value, { stream: true });
+            
+            // 完全なJSONオブジェクトを処理
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || ""; // 最後の不完全な行を保持
+            
+            for (const line of lines) {
+              if (line.trim() === "") continue;
+              
+              try {
+                const data = JSON.parse(line);
+                
+                // 終了メッセージを受信した場合
+                if (data.finish) {
+                  console.log("ストリーミング生成完了");
+                  
+                  // すべての進捗バーを100%にしてから非表示にする
+                  for (let i = 0; i < num; i++) {
+                    progressState[i] = 100;
+                    progressBars[i].style.width = "100%";
+                    progressStatus[i].textContent = "完了 100%";
+                    
+                    // 少し遅延させてからプログレスバーと進捗状況テキストを非表示にする
+                    setTimeout(() => {
+                      // プログレスバーのコンテナを非表示
+                      const container = progressBars[i].parentElement;
+                      if (container) {
+                        container.style.transition = "opacity 0.5s ease";
+                        container.style.opacity = "0";
+                        setTimeout(() => {
+                          container.style.display = "none";
+                        }, 500);
+                      }
+                      
+                      // 進捗状況テキストを非表示
+                      if (progressStatus[i]) {
+                        progressStatus[i].style.transition = "opacity 0.5s ease";
+                        progressStatus[i].style.opacity = "0";
+                        setTimeout(() => {
+                          progressStatus[i].style.display = "none";
+                        }, 500);
+                      }
+                    }, 1000); // 1秒後に非表示処理を開始
+                  }
+                  
+                  // 進捗更新を停止
+                  clearInterval(progressInterval);
+                  break;
+                }
+                
+                // デルタ（新しいテキスト部分）を受信した場合
+                if (data.delta && typeof data.sequence_idx === "number") {
+                  const idx = data.sequence_idx;
+                  if (idx < responseElements.length) {
+                    // </s>という文字列を除去
+                    const cleanedDelta = data.delta.replace(/<\/s>/g, "");
+                    console.log(cleanedDelta);
+                    responseElements[idx].textContent += cleanedDelta;
+                    
+                    // データを受信するたびに進捗状態を更新
+                    if (progressState[idx] < 99) {
+                      // 進捗を少し進める（ただし99%まで）
+                      progressState[idx] = Math.min(progressState[idx] + 2, 99);
+                      progressBars[idx].style.width = `${progressState[idx]}%`;
+                      progressStatus[idx].textContent = `生成中... ${progressState[idx]}%`;
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error("JSONパースエラー:", e, line);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("ストリーミングエラー:", error);
+          messages.innerHTML += `<div class="msg bot">⚠️ ストリーミングエラー: ${error.message || "Failed to fetch"}</div>`;
+          
+          // エラー表示に進捗バーを更新
+          for (let i = 0; i < num; i++) {
+            progressBars[i].style.width = "100%";
+            progressBars[i].style.backgroundColor = "#ff5252"; // エラー色に変更
+            progressStatus[i].textContent = "エラー";
+            
+            // エラー表示は残しておく（非表示にしない）
+          }
+        } finally {
+          // 必ずインターバルをクリア
+          if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+          }
+        }
+      } else {
+        // 通常モード（非ストリーミング）
+        const res = await fetch("/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: prompt,
+            max_tokens: 300,
+            num_return_sequences: num,
+            stream: false
+          })
+        });
+
+        const data = await res.json();
+
+        if (Array.isArray(data.responses)) {
+          if (jsonMode) {
+            // JSON形式で表示
+            document.getElementById("jsonOutput").style.display = "block";
+            document.getElementById("jsonArea").value = JSON.stringify(
+              data.responses.map(text => ({ response: text.replace(/<\/s>/g, "") })),
+              null,
+              2
+            );
+          } else {
+            // 通常チャット形式で表示
+            document.getElementById("jsonOutput").style.display = "none";
+            data.responses.forEach((text, index) => {
+              // </s>という文字列を除去
+              const cleanedText = text.replace(/<\/s>/g, "");
+              console.log(cleanedText);
+              messages.innerHTML += `<div class="msg bot">💋 <span class="variant">案 ${index + 1}: ${cleanedText}</span></div>`;
+            });
+          }
+        } else {
+          messages.innerHTML += `<div class="msg bot">⚠️ 取得失敗: ${data.response || "形式不正"}</div>`;
+        }
+      }
+
+      document.getElementById("prompt").value = "";
+    }
+  </script>
+</body>
+</html>

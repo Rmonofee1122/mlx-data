@@ -1,0 +1,80 @@
+body { font-family: sans-serif; margin: 2rem; background: #f8f8f8; }
+    #chat { max-width: 700px; margin: auto; background: white; padding: 1rem; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
+    .msg { margin: 0.5rem 0; }
+    .user { text-align: right; color: #007bff; }
+    .bot { text-align: left; color: #e91e63; }
+    .variant { padding-left: 1rem; margin-top: 0.3rem; font-size: 0.95rem; }
+    input, button, select { padding: 0.5rem; font-size: 1rem; margin-right: 0.5rem; }
+    .controls { margin-top: 1rem; }
+    textarea { width: 100%; height: 150px; margin-top: 1rem; font-family: monospace; white-space: pre; }
+    
+    /* プログレスバー関連のスタイル */
+    #progressContainer {
+      display: none;
+      margin: 1rem 0;
+      width: 100%;
+    }
+    #progressBar {
+      width: 0%;
+      height: 10px;
+      background-color: #e91e63;
+      border-radius: 5px;
+      transition: width 0.3s ease;
+      animation: pulse 1.5s infinite;
+    }
+    #progressStatus {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 0.3rem;
+      text-align: center;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.6; }
+      50% { opacity: 1; }
+      100% { opacity: 0.6; }
+    }
+
+    /* システムモニターのスタイル */
+    #systemMonitor {
+        max-width: 700px;
+        margin: 1rem auto;
+        background: white;
+        padding: 1rem;
+        border-radius: 10px;
+        box-shadow: 0 0 10px #ccc;
+      }
+      
+      #systemMonitor h4 {
+        margin-top: 0;
+        text-align: center;
+        color: #333;
+      }
+      
+      .resource-container {
+        display: flex;
+        justify-content: space-around;
+        flex-wrap: wrap;
+      }
+      
+      .resource {
+        margin: 0.5rem;
+        width: 45%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      
+      .meter {
+        width: 60%;
+        height: 12px;
+        background-color: #f0f0f0;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      
+      .meter-fill {
+        height: 100%;
+        background-color: #4CAF50;
+        width: 0%;
+        transition: width 0.5s ease;
+      }

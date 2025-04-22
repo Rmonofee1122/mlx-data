@@ -9,6 +9,7 @@ import time
 import os
 import json
 import asyncio
+import psutil
 
 app = FastAPI()
 
@@ -23,6 +24,14 @@ print(f"✅ モデル読み込み完了: {time.time() - t0:.2f}秒")
 
 # ✅ mount は app 定義のあとに書く！
 app.mount("/static", StaticFiles(directory="static"), name="static")
+# styles ディレクトリも静的ファイルとして提供
+app.mount("/styles", StaticFiles(directory="styles"), name="styles")
+
+# ✅ /chat.tsx ファイルを直接提供するためのルート
+# @app.get("/chat.tsx")
+# async def serve_tsx():
+#     with open("chat.tsx", encoding="utf-8") as f:
+#         return f.read()
 
 # ✅ /chat ルート
 @app.get("/chat", response_class=HTMLResponse)
@@ -127,3 +136,22 @@ async def generate_stream(req: PromptRequest):
         stream_generator(),
         media_type="application/x-ndjson"
     )
+
+# システム情報を取得するAPIエンドポイント
+@app.get("/system-info")
+async def get_system_info():
+    # CPU使用率を取得（パーセンテージ）
+    cpu_percent = psutil.cpu_percent(interval=0.5)
+    
+    # メモリ情報を取得
+    memory = psutil.virtual_memory()
+    memory_percent = memory.percent
+    memory_used = memory.used
+    memory_total = memory.total
+    
+    return {
+        "cpu": cpu_percent,
+        "memory": memory_percent,
+        "memory_used": memory_used,
+        "memory_total": memory_total
+    }
