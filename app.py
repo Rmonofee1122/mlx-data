@@ -28,10 +28,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/styles", StaticFiles(directory="styles"), name="styles")
 
 # ✅ /chat.tsx ファイルを直接提供するためのルート
-# @app.get("/chat.tsx")
-# async def serve_tsx():
-#     with open("chat.tsx", encoding="utf-8") as f:
-#         return f.read()
+@app.get("/chat.tsx")
+async def serve_tsx():
+    with open("chat.tsx", encoding="utf-8") as f:
+        return f.read()
 
 # ✅ /chat ルート
 @app.get("/chat", response_class=HTMLResponse)
